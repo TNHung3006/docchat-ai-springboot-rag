@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: doc-chat-rag
+  config:
+    # Tự động đọc biến GEMINI_API_KEY từ file .env khi bấm nút Run trong VS Code / IntelliJ
+    import: optional:file:.env[.properties]
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+# Cấu hình AI Service (Google Gemini API)
+ai:
+  gemini:
+    api-key: ${GEMINI_API_KEY:YOUR_GEMINI_API_KEY_HERE}
+    model-name: gemini-3.5-flash-lite
