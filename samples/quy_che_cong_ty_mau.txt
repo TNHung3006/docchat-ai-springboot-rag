@@ -1,0 +1,23 @@
+QUY CHẾ LÀM VIỆC VÀ PHÚC LỢI CÔNG TY TECH-AI VIỆT NAM (NĂM 2026)
+
+1. Thời gian làm việc:
+- Nhân viên làm việc từ Thứ Hai đến Thứ Sáu hàng tuần.
+- Giờ làm việc linh hoạt (Flexible Time): Bắt đầu từ 8:30 - 9:30 sáng và kết thúc từ 17:30 - 18:30 chiều (đảm bảo đủ 8 tiếng/ngày).
+- Nghỉ trưa: 12:00 đến 13:30 (1 tiếng 30 phút).
+- Chính sách làm việc từ xa (Work From Home - WFH): Nhân viên được phép làm việc tại nhà tối đa 2 ngày mỗi tuần sau khi báo trước với Quản lý trực tiếp trước 9:00 sáng.
+
+2. Chế độ nghỉ phép và nghỉ lễ:
+- Mỗi nhân viên chính thức có 15 ngày nghỉ phép hưởng nguyên lương mỗi năm (nhiều hơn luật lao động 3 ngày).
+- Cứ mỗi 3 năm thâm niên làm việc tại công ty, nhân viên được cộng thêm 1 ngày phép năm.
+- Ngày sinh nhật: Nhân viên được nghỉ hưởng nguyên lương 1 ngày vào tuần có ngày sinh nhật của mình.
+
+3. Chế độ lương thưởng và phụ cấp:
+- Kỳ trả lương: Ngày 05 hàng tháng. Nếu ngày 05 trùng vào Thứ Bảy hoặc Chủ Nhật, lương sẽ được chuyển sớm vào Thứ Sáu trước đó.
+- Phụ cấp ăn trưa: 1.200.000 VNĐ/tháng.
+- Phụ cấp xăng xe và điện thoại: 800.000 VNĐ/tháng.
+- Hỗ trợ học tập & chứng chỉ: Công ty tài trợ 100% lệ phí thi các chứng chỉ quốc tế về Cloud (AWS, GCP, Azure) và AI/Java nếu nhân viên thi đỗ.
+- Thưởng cuối năm: Thưởng tháng lương thứ 13 cố định và thưởng hiệu suất (Performance Bonus) từ 1 đến 3 tháng lương tùy theo đánh giá KPI.
+
+4. Quy định bảo mật thông tin:
+- Không chia sẻ API Key, mật khẩu hoặc tài liệu nội bộ của dự án lên các kho mã nguồn công khai (Public GitHub).
+- Mọi máy tính làm việc đều phải cài đặt mật khẩu khóa màn hình tự động sau 5 phút không hoạt động.

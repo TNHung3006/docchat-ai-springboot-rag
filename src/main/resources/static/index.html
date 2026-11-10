@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocChat AI - Trợ Lý Hỏi Đáp Tài Liệu (RAG)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Cột trái: Quản lý và Upload tài liệu -->
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="logo">📚</span>
+                <div>
+                    <h1>DocChat AI</h1>
+                    <p>Java Spring Boot + Gemini RAG</p>
+                </div>
+            </div>
+
+            <div class="upload-card">
+                <h2>1. Tải tài liệu lên</h2>
+                <p class="hint">Hỗ trợ định dạng <strong>.PDF</strong> hoặc <strong>.TXT</strong></p>
+
+                <label for="fileInput" class="drop-zone" id="dropZone">
+                    <span class="upload-icon">📄</span>
+                    <span id="fileNameDisplay">Nhấn để chọn file tài liệu</span>
+                    <input type="file" id="fileInput" accept=".pdf,.txt" hidden>
+                </label>
+
+                <button id="uploadBtn" class="btn-primary" disabled>
+                    Nạp tài liệu vào bộ nhớ AI
+                </button>
+
+                <div id="uploadStatus" class="status-box hidden"></div>
+            </div>
+
+            <div class="doc-list-section">
+                <div class="doc-list-header">
+                    <h3>Tài liệu đã nạp</h3>
+                    <button id="clearDocsBtn" class="btn-clear" title="Xóa toàn bộ tài liệu trong bộ nhớ">🗑️ Xóa bộ nhớ</button>
+                </div>
+                <ul id="uploadedDocsList" class="doc-list">
+                    <li class="empty-item">Chưa có tài liệu nào được nạp.</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Cột phải: Khung Chat hỏi đáp -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <h2>2. Trò chuyện với tài liệu của bạn</h2>
+                <span class="badge">Powered by LangChain4j &amp; Gemini API</span>
+            </header>
+
+            <div id="chatMessages" class="chat-messages">
+                <div class="message ai-message">
+                    <div class="avatar">🤖</div>
+                    <div class="bubble">
+                        Xin chào! Hãy tải lên một file <strong>PDF</strong> hoặc <strong>TXT</strong> ở cột bên trái, sau đó đặt bất kỳ câu hỏi nào về nội dung bên trong tài liệu đó nhé!
+                    </div>
+                </div>
+            </div>
+
+            <form id="chatForm" class="chat-input-bar">
+                <input
+                    type="text"
+                    id="questionInput"
+                    placeholder="Nhập câu hỏi về nội dung tài liệu (VD: Tóm tắt các ý chính của tài liệu)..."
+                    autocomplete="off"
+                    required
+                />
+                <button type="submit" id="sendBtn" class="btn-send">Gửi ➤</button>
+            </form>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
