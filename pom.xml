@@ -57,7 +57,14 @@
             <version>${langchain4j.version}</version>
         </dependency>
 
-        <!-- 6. Spring Boot Test -->
+        <!-- 6. LangChain4j Apache POI Parser (Đọc nội dung từ file Word .docx, Excel .xlsx, PowerPoint .pptx) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-document-parser-apache-poi</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <!-- 7. Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

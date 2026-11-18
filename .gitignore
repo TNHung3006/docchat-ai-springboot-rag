@@ -31,7 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+tempCodeRunnerFile*
 
 ### Environment Variables & Local Secrets ###
 .env
 application-local.yml
+data/

@@ -9,10 +9,12 @@ Một ứng dụng **RAG (Retrieval-Augmented Generation)** hoàn chỉnh đư�
 ---
 
 ## ✨ Tính năng nổi bật
-* **Tải tài liệu trực tiếp (PDF/TXT):** Tự động trích xuất văn bản bằng Apache PDFBox và cắt nhỏ thành các đoạn (Chunking).
-* **Local Embedding miễn phí:** Chuyển văn bản thành Vector ngay trên máy bằng mô hình `All-MiniLM-L6-v2` mà không tốn phí gọi API Embedding.
-* **In-Memory Vector Store & Chống trùng lặp:** Lưu trữ và tìm kiếm ngữ nghĩa tốc độ cao ngay trên RAM, hỗ trợ làm mới bộ nhớ tài liệu (`DELETE /api/documents`).
-* **Tích hợp Google Gemini API (Auto-Fallback):** Sinh câu trả lời tự nhiên, chính xác bằng tiếng Việt, bám sát ngữ cảnh tài liệu và hạn chế ảo giác (Hallucination).
+* **Hỗ trợ đa định dạng tài liệu (PDF, Word, Excel, PowerPoint, TXT):** Tự động trích xuất văn bản bằng Apache PDFBox & Apache POI, sau đó cắt nhỏ thành các đoạn (Chunking).
+* **Trích dẫn nguồn tài liệu (Source Citations):** Hiển thị rõ câu trả lời được trích từ file nào và đoạn văn bản gốc nào trong tài liệu.
+* **Lọc phạm vi tìm kiếm & Quản lý từng file:** Xem danh sách tài liệu đã nạp, xóa riêng từng file hoặc chọn chỉ hỏi đáp trên một tài liệu cụ thể.
+* **Lưu trữ Vector bền vững (Persistent Local Store):** Tự động lưu trữ Vector và metadata xuống đĩa (`data/vector-store.json`), không bị mất tài liệu khi khởi động lại ứng dụng.
+* **Quản lý đa phiên hội thoại (`@MemoryId`):** Mỗi người dùng/phiên làm việc có bộ nhớ ngữ cảnh độc lập, hỗ trợ làm mới cuộc trò chuyện bất kỳ lúc nào.
+* **Local Embedding miễn phí & Google Gemini API (Auto-Fallback):** Chuyển văn bản thành Vector ngay trên máy bằng `All-MiniLM-L6-v2` và sinh câu trả lời chuẩn xác qua Gemini API.
 
 ---
 
@@ -39,9 +41,12 @@ Sau khi ứng dụng khởi động, mở trình duyệt tại địa chỉ: **`
 
 | Phương thức | Endpoint | Mô tả |
 | :--- | :--- | :--- |
-| `POST` | `/api/documents/upload` | Tải lên file `.pdf` hoặc `.txt`, cắt đoạn và lưu vào Vector Store |
+| `GET` | `/api/documents` | Lấy danh sách toàn bộ tài liệu đang được lưu trong bộ nhớ AI |
+| `POST` | `/api/documents/upload` | Tải lên file (`.pdf`, `.docx`, `.xlsx`, `.pptx`, `.txt`), cắt đoạn và lưu vào Vector Store |
+| `DELETE` | `/api/documents/{fileName}` | Xóa riêng một tài liệu cụ thể khỏi bộ nhớ |
 | `DELETE` | `/api/documents` | Xóa toàn bộ tài liệu đã nạp trong bộ nhớ AI |
-| `POST` | `/api/chat` | Gửi câu hỏi (`{"question": "..."}`) và nhận câu trả lời từ Gemini |
+| `POST` | `/api/chat` | Gửi câu hỏi (`question`, `sessionId`, `fileFilter`) và nhận câu trả lời kèm trích dẫn nguồn (`sources`) |
+| `DELETE` | `/api/chat/memory/{sessionId}` | Xóa lịch sử hội thoại của phiên làm việc hiện tại |
 
 ---
 

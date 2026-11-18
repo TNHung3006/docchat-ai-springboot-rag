@@ -7,6 +7,8 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.memory.ChatMemory;
+import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -15,7 +17,7 @@ import dev.langchain4j.model.output.Response;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.service.AiServices;
-import dev.langchain4j.store.embedding.EmbeddingStore;
+import dev.langchain4j.store.embedding.filter.MetadataFilterBuilder;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -23,12 +25,21 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Configuration
 public class AiConfig {
+
+    public static final Path VECTOR_STORE_FILE = Paths.get("data", "vector-store.json");
+    private static final ThreadLocal<String> ACTIVE_FILE_FILTER = new ThreadLocal<>();
+
+    private final Map<Object, ChatMemory> memoryMap = new ConcurrentHashMap<>();
 
     @Value("${ai.gemini.api-key}")
     private String geminiApiKey;
@@ -36,18 +47,45 @@ public class AiConfig {
     @Value("${ai.gemini.model-name:gemini-3.5-flash-lite}")
     private String geminiModelName;
 
+    public static void setFileFilter(String fileName) {
+        if (fileName == null || fileName.isBlank() || "ALL".equalsIgnoreCase(fileName)) {
+            ACTIVE_FILE_FILTER.remove();
+        } else {
+            ACTIVE_FILE_FILTER.set(fileName);
+        }
+    }
+
+    public static void clearFileFilter() {
+        ACTIVE_FILE_FILTER.remove();
+    }
+
+    public void clearSessionMemory(String sessionId) {
+        if (sessionId != null) {
+            ChatMemory memory = memoryMap.remove(sessionId);
+            if (memory != null) {
+                memory.clear();
+            }
+        }
+    }
+
     /**
-     * 1. Kho lưu trữ Vector trên RAM (In-Memory Vector Store)
-     * Lưu các đoạn văn bản từ tài liệu sau khi đã chuyển thành Vector.
+     * 1. Kho lưu trữ Vector (In-Memory kết hợp lưu trữ bền vững xuống file JSON)
+     * Tự động khôi phục dữ liệu Vector đã nạp từ lần chạy trước nếu có.
      */
     @Bean
-    public EmbeddingStore<TextSegment> embeddingStore() {
+    public InMemoryEmbeddingStore<TextSegment> embeddingStore() {
+        try {
+            if (Files.exists(VECTOR_STORE_FILE)) {
+                return InMemoryEmbeddingStore.fromFile(VECTOR_STORE_FILE);
+            }
+        } catch (Exception e) {
+            System.err.println("Không thể đọc vector store cũ, khởi tạo mới: " + e.getMessage());
+        }
         return new InMemoryEmbeddingStore<>();
     }
 
     /**
      * 2. Mô hình Embedding chạy trực tiếp trên máy (Local In-Process)
-     * Chuyển đổi đoạn văn bản và câu hỏi thành mảng số học (Vector) hoàn toàn miễn phí.
      */
     @Bean
     public EmbeddingModel embeddingModel() {
@@ -55,8 +93,7 @@ public class AiConfig {
     }
 
     /**
-     * 3. Kết nối trực tiếp tới Google Gemini REST API (Hỗ trợ các dòng Gemini 3.5+ mới nhất)
-     * Tự động chuyển đổi sang model dự phòng nếu model chính bị quá tải (503).
+     * 3. Kết nối trực tiếp tới Google Gemini REST API (Hỗ trợ các dòng Gemini mới nhất & Auto-Fallback)
      */
     @Bean
     public ChatLanguageModel chatLanguageModel() {
@@ -125,29 +162,47 @@ public class AiConfig {
     }
 
     /**
-     * 4. Bộ truy xuất nội dung (Content Retriever)
-     * Tìm ra tối đa 8 đoạn văn trong tài liệu có độ tương đồng cao nhất với câu hỏi.
+     * 4. Bộ truy xuất nội dung (Content Retriever) có hỗ trợ lọc theo tên tài liệu (Dynamic Filter)
      */
     @Bean
-    public ContentRetriever contentRetriever(EmbeddingStore<TextSegment> embeddingStore,
+    public ContentRetriever contentRetriever(InMemoryEmbeddingStore<TextSegment> embeddingStore,
                                              EmbeddingModel embeddingModel) {
         return EmbeddingStoreContentRetriever.builder()
                 .embeddingStore(embeddingStore)
                 .embeddingModel(embeddingModel)
-                .maxResults(8)
+                .maxResults(6)
                 .minScore(0.3)
+                .dynamicFilter(query -> {
+                    String selectedFile = ACTIVE_FILE_FILTER.get();
+                    if (selectedFile != null && !selectedFile.isBlank()) {
+                        return MetadataFilterBuilder.metadataKey("file_name").isEqualTo(selectedFile);
+                    }
+                    return null;
+                })
                 .build();
     }
 
     /**
-     * 5. Khởi tạo trợ lý AI (DocumentAssistant) kết hợp LLM + Bộ nhớ hội thoại + RAG Retriever
+     * 5. Quản lý bộ nhớ hội thoại độc lập cho từng phiên chat (Session ID)
+     */
+    @Bean
+    public ChatMemoryProvider chatMemoryProvider() {
+        return memoryId -> memoryMap.computeIfAbsent(
+                memoryId,
+                id -> MessageWindowChatMemory.withMaxMessages(12)
+        );
+    }
+
+    /**
+     * 6. Khởi tạo trợ lý AI (DocumentAssistant) kết hợp LLM + Multi-session Memory + RAG Retriever
      */
     @Bean
     public DocumentAssistant documentAssistant(ChatLanguageModel chatLanguageModel,
-                                               ContentRetriever contentRetriever) {
+                                               ContentRetriever contentRetriever,
+                                               ChatMemoryProvider chatMemoryProvider) {
         return AiServices.builder(DocumentAssistant.class)
                 .chatLanguageModel(chatLanguageModel)
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
+                .chatMemoryProvider(chatMemoryProvider)
                 .contentRetriever(contentRetriever)
                 .build();
     }

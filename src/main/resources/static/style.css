@@ -25,7 +25,8 @@ body {
     padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
+    overflow-y: auto;
 }
 
 .brand {
@@ -71,7 +72,7 @@ body {
 .drop-zone {
     border: 2px dashed #475569;
     border-radius: 10px;
-    padding: 20px 12px;
+    padding: 18px 12px;
     text-align: center;
     cursor: pointer;
     display: flex;
@@ -87,7 +88,7 @@ body {
 }
 
 .upload-icon {
-    font-size: 28px;
+    font-size: 26px;
 }
 
 #fileNameDisplay {
@@ -140,6 +141,13 @@ body {
     display: none;
 }
 
+.doc-list-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
 .doc-list-header {
     display: flex;
     justify-content: space-between;
@@ -174,6 +182,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    overflow-y: auto;
 }
 
 .doc-list li {
@@ -183,6 +192,47 @@ body {
     font-size: 13px;
     border: 1px solid #334155;
     color: #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.doc-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.doc-item-name {
+    font-weight: 600;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.doc-item-meta {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.btn-delete-doc {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.btn-delete-doc:hover {
+    color: #f87171;
+    background-color: rgba(239, 68, 68, 0.15);
 }
 
 .doc-list .empty-item {
@@ -198,12 +248,20 @@ body {
 }
 
 .chat-header {
-    padding: 18px 28px;
+    padding: 14px 28px;
     border-bottom: 1px solid #334155;
     background-color: #1e293b;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .chat-header h2 {
@@ -219,6 +277,49 @@ body {
     font-weight: 600;
 }
 
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.filter-label {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.filter-select {
+    background-color: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    outline: none;
+    max-width: 220px;
+}
+
+.filter-select:focus {
+    border-color: #38bdf8;
+}
+
+.btn-secondary {
+    background-color: #0f172a;
+    color: #cbd5e1;
+    border: 1px solid #475569;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    border-color: #38bdf8;
+    color: #38bdf8;
+}
+
 .chat-messages {
     flex: 1;
     padding: 24px 28px;
@@ -231,7 +332,7 @@ body {
 .message {
     display: flex;
     gap: 12px;
-    max-width: 80%;
+    max-width: 82%;
 }
 
 .user-message {
@@ -291,8 +392,78 @@ body {
     color: #ffffff;
 }
 
+/* Source Citations */
+.citations-box {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed #334155;
+}
+
+.citations-box summary {
+    font-size: 12px;
+    font-weight: 600;
+    color: #38bdf8;
+    cursor: pointer;
+    user-select: none;
+}
+
+.citations-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.citation-item {
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    border-left: 3px solid #38bdf8;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+.citation-file {
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 3px;
+}
+
+.citation-snippet {
+    color: #94a3b8;
+    font-style: italic;
+    line-height: 1.45;
+}
+
+/* Quick Actions */
+.quick-actions {
+    padding: 8px 28px;
+    background-color: #0f172a;
+    border-top: 1px solid #1e293b;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.chip {
+    background-color: #1e293b;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chip:hover {
+    border-color: #38bdf8;
+    color: #38bdf8;
+    background-color: rgba(56, 189, 248, 0.08);
+}
+
 .chat-input-bar {
-    padding: 18px 28px;
+    padding: 14px 28px;
     background-color: #1e293b;
     border-top: 1px solid #334155;
     display: flex;

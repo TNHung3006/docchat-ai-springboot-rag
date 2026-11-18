@@ -1,14 +1,24 @@
 package com.example.docchat.controller;
 
+import com.example.docchat.config.AiConfig;
 import com.example.docchat.dto.ChatRequest;
 import com.example.docchat.dto.ChatResponse;
+import com.example.docchat.dto.DocumentInfo;
+import com.example.docchat.dto.SourceCitation;
 import com.example.docchat.service.DocumentAssistant;
 import com.example.docchat.service.DocumentIngestionService;
+import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.rag.content.Content;
+import dev.langchain4j.service.Result;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
@@ -16,15 +26,26 @@ public class ChatController {
 
     private final DocumentIngestionService ingestionService;
     private final DocumentAssistant documentAssistant;
+    private final AiConfig aiConfig;
 
     public ChatController(DocumentIngestionService ingestionService,
-                          DocumentAssistant documentAssistant) {
+                          DocumentAssistant documentAssistant,
+                          AiConfig aiConfig) {
         this.ingestionService = ingestionService;
         this.documentAssistant = documentAssistant;
+        this.aiConfig = aiConfig;
     }
 
     /**
-     * API 1: Tải lên tài liệu (PDF hoặc TXT)
+     * API 1: Lấy danh sách các tài liệu đã nạp
+     */
+    @GetMapping("/documents")
+    public ResponseEntity<List<DocumentInfo>> listDocuments() {
+        return ResponseEntity.ok(ingestionService.listDocuments());
+    }
+
+    /**
+     * API 2: Tải lên tài liệu (PDF, DOCX, XLSX, PPTX, TXT)
      */
     @PostMapping("/documents/upload")
     public ResponseEntity<Map<String, Object>> uploadDocument(@RequestParam("file") MultipartFile file) {
@@ -36,12 +57,13 @@ public class ChatController {
         }
 
         try {
-            int chunksCount = ingestionService.ingestDocument(file);
+            DocumentInfo docInfo = ingestionService.ingestDocument(file);
             return ResponseEntity.ok(Map.of(
                     "status", "success",
-                    "message", String.format("Đã đọc và ghi nhớ tài liệu '%s' (%d đoạn văn).",
-                            file.getOriginalFilename(), chunksCount),
-                    "chunks", chunksCount
+                    "message", String.format("Đã đọc và lưu trữ tài liệu '%s' (%d đoạn văn).",
+                            docInfo.fileName(), docInfo.chunks()),
+                    "chunks", docInfo.chunks(),
+                    "document", docInfo
             ));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of(
@@ -52,7 +74,19 @@ public class ChatController {
     }
 
     /**
-     * API 2: Xóa toàn bộ tài liệu khỏi bộ nhớ AI
+     * API 3: Xóa 1 tài liệu cụ thể theo tên file
+     */
+    @DeleteMapping("/documents/{fileName}")
+    public ResponseEntity<Map<String, String>> deleteDocument(@PathVariable("fileName") String fileName) {
+        ingestionService.deleteDocument(fileName);
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Đã xóa tài liệu: " + fileName
+        ));
+    }
+
+    /**
+     * API 4: Xóa toàn bộ tài liệu khỏi bộ nhớ AI
      */
     @DeleteMapping("/documents")
     public ResponseEntity<Map<String, String>> clearDocuments() {
@@ -64,7 +98,7 @@ public class ChatController {
     }
 
     /**
-     * API 3: Đặt câu hỏi với AI về nội dung tài liệu
+     * API 5: Đặt câu hỏi với AI về nội dung tài liệu (hỗ trợ Session Memory, Lọc file & Trích dẫn nguồn)
      */
     @PostMapping("/chat")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
@@ -72,13 +106,56 @@ public class ChatController {
             return ResponseEntity.badRequest().body(new ChatResponse("Vui lòng nhập câu hỏi của bạn."));
         }
 
+        String sessionId = (request.sessionId() != null && !request.sessionId().isBlank())
+                ? request.sessionId()
+                : "default-session";
+
         try {
-            String answer = documentAssistant.chat(request.question());
-            return ResponseEntity.ok(new ChatResponse(answer));
+            AiConfig.setFileFilter(request.fileFilter());
+            Result<String> result = documentAssistant.chat(sessionId, request.question());
+
+            List<SourceCitation> citations = new ArrayList<>();
+            Set<String> seenSnippets = new LinkedHashSet<>();
+
+            if (result.sources() != null) {
+                for (Content content : result.sources()) {
+                    TextSegment segment = content.textSegment();
+                    if (segment != null) {
+                        String fileName = segment.metadata().getString("file_name");
+                        if (fileName == null || fileName.isBlank()) {
+                            fileName = "Tài liệu đã tải lên";
+                        }
+                        String snippet = segment.text().trim();
+                        if (snippet.length() > 220) {
+                            snippet = snippet.substring(0, 220) + "...";
+                        }
+                        String key = fileName + "::" + snippet;
+                        if (seenSnippets.add(key)) {
+                            citations.add(new SourceCitation(fileName, snippet));
+                        }
+                    }
+                }
+            }
+
+            return ResponseEntity.ok(new ChatResponse(result.content(), citations));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(new ChatResponse(
                     "Lỗi kết nối tới LLM API (Kiểm tra lại GEMINI_API_KEY của bạn): " + e.getMessage()
             ));
+        } finally {
+            AiConfig.clearFileFilter();
         }
+    }
+
+    /**
+     * API 6: Xóa lịch sử hội thoại của một phiên chat (New Chat)
+     */
+    @DeleteMapping("/chat/memory/{sessionId}")
+    public ResponseEntity<Map<String, String>> clearChatMemory(@PathVariable("sessionId") String sessionId) {
+        aiConfig.clearSessionMemory(sessionId);
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Đã làm mới phiên hội thoại."
+        ));
     }
 }
