@@ -3,8 +3,11 @@ package com.example.docchat.controller;
 import com.example.docchat.config.AiConfig;
 import com.example.docchat.dto.ChatRequest;
 import com.example.docchat.dto.ChatResponse;
+import com.example.docchat.dto.ChatSession;
+import com.example.docchat.dto.ChatSessionSummary;
 import com.example.docchat.dto.DocumentInfo;
 import com.example.docchat.dto.SourceCitation;
+import com.example.docchat.service.ChatHistoryService;
 import com.example.docchat.service.DocumentAssistant;
 import com.example.docchat.service.DocumentIngestionService;
 import dev.langchain4j.data.segment.TextSegment;
@@ -27,13 +30,16 @@ public class ChatController {
     private final DocumentIngestionService ingestionService;
     private final DocumentAssistant documentAssistant;
     private final AiConfig aiConfig;
+    private final ChatHistoryService chatHistoryService;
 
     public ChatController(DocumentIngestionService ingestionService,
                           DocumentAssistant documentAssistant,
-                          AiConfig aiConfig) {
+                          AiConfig aiConfig,
+                          ChatHistoryService chatHistoryService) {
         this.ingestionService = ingestionService;
         this.documentAssistant = documentAssistant;
         this.aiConfig = aiConfig;
+        this.chatHistoryService = chatHistoryService;
     }
 
     /**
@@ -137,6 +143,7 @@ public class ChatController {
                 }
             }
 
+            chatHistoryService.appendExchange(sessionId, request.question(), result.content(), citations);
             return ResponseEntity.ok(new ChatResponse(result.content(), citations));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(new ChatResponse(
@@ -148,11 +155,80 @@ public class ChatController {
     }
 
     /**
-     * API 6: Xóa lịch sử hội thoại của một phiên chat (New Chat)
+     * API 6: Lấy danh sách các phiên hội thoại đã lưu
+     */
+    @GetMapping("/chat/sessions")
+    public ResponseEntity<List<ChatSessionSummary>> listChatSessions() {
+        return ResponseEntity.ok(chatHistoryService.listSessions());
+    }
+
+    /**
+     * API 7: Tạo một phiên hội thoại mới
+     */
+    @PostMapping("/chat/sessions")
+    public ResponseEntity<ChatSession> createChatSession(
+            @RequestBody(required = false) Map<String, String> payload) {
+        String title = payload != null ? payload.get("title") : null;
+        return ResponseEntity.ok(chatHistoryService.createSession(title));
+    }
+
+    /**
+     * API 8: Lấy chi tiết toàn bộ tin nhắn và trích dẫn nguồn của 1 phiên hội thoại
+     */
+    @GetMapping("/chat/sessions/{sessionId}")
+    public ResponseEntity<ChatSession> getChatSession(@PathVariable("sessionId") String sessionId) {
+        ChatSession session = chatHistoryService.getSession(sessionId);
+        if (session == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(session);
+    }
+
+    /**
+     * API 9: Đổi tên tiêu đề của một phiên hội thoại
+     */
+    @PutMapping("/chat/sessions/{sessionId}")
+    public ResponseEntity<ChatSession> renameChatSession(
+            @PathVariable("sessionId") String sessionId,
+            @RequestBody Map<String, String> payload) {
+        String newTitle = payload != null ? payload.get("title") : null;
+        ChatSession updated = chatHistoryService.renameSession(sessionId, newTitle);
+        if (updated == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * API 10: Xóa 1 phiên hội thoại cụ thể
+     */
+    @DeleteMapping("/chat/sessions/{sessionId}")
+    public ResponseEntity<Map<String, String>> deleteChatSession(@PathVariable("sessionId") String sessionId) {
+        chatHistoryService.deleteSession(sessionId);
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Đã xóa cuộc trò chuyện."
+        ));
+    }
+
+    /**
+     * API 11: Xóa toàn bộ lịch sử các phiên hội thoại
+     */
+    @DeleteMapping("/chat/sessions")
+    public ResponseEntity<Map<String, String>> clearAllChatSessions() {
+        chatHistoryService.clearAllSessions();
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Đã xóa toàn bộ lịch sử trò chuyện."
+        ));
+    }
+
+    /**
+     * API 12: Xóa lịch sử hội thoại của một phiên chat (Tương thích ngược)
      */
     @DeleteMapping("/chat/memory/{sessionId}")
     public ResponseEntity<Map<String, String>> clearChatMemory(@PathVariable("sessionId") String sessionId) {
-        aiConfig.clearSessionMemory(sessionId);
+        chatHistoryService.deleteSession(sessionId);
         return ResponseEntity.ok(Map.of(
                 "status", "success",
                 "message", "Đã làm mới phiên hội thoại."

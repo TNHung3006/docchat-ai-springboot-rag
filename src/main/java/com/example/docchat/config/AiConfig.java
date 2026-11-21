@@ -1,5 +1,6 @@
 package com.example.docchat.config;
 
+import com.example.docchat.dto.ChatMessageRecord;
 import com.example.docchat.service.DocumentAssistant;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.langchain4j.data.message.AiMessage;
@@ -66,6 +67,34 @@ public class AiConfig {
                 memory.clear();
             }
         }
+    }
+
+    public void clearAllSessionMemories() {
+        memoryMap.values().forEach(ChatMemory::clear);
+        memoryMap.clear();
+    }
+
+    /**
+     * Khôi phục bộ nhớ ngữ cảnh của AI từ lịch sử tin nhắn đã lưu trên đĩa khi khởi động lại Server
+     */
+    public void restoreSessionMemory(String sessionId, List<ChatMessageRecord> messages) {
+        if (sessionId == null || messages == null || messages.isEmpty()) {
+            return;
+        }
+        ChatMemory memory = MessageWindowChatMemory.withMaxMessages(12);
+        int startIdx = Math.max(0, messages.size() - 12);
+        for (int i = startIdx; i < messages.size(); i++) {
+            ChatMessageRecord msg = messages.get(i);
+            if (msg.content() == null || msg.content().isBlank()) {
+                continue;
+            }
+            if ("user".equalsIgnoreCase(msg.role())) {
+                memory.add(UserMessage.from(msg.content()));
+            } else if ("ai".equalsIgnoreCase(msg.role())) {
+                memory.add(AiMessage.from(msg.content()));
+            }
+        }
+        memoryMap.put(sessionId, memory);
     }
 
     /**

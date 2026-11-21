@@ -141,11 +141,12 @@ body {
     display: none;
 }
 
-.doc-list-section {
+.doc-list-section,
+.session-list-section {
     display: flex;
     flex-direction: column;
     flex: 1;
-    min-height: 0;
+    min-height: 110px;
 }
 
 .doc-list-header {
@@ -155,9 +156,53 @@ body {
     margin-bottom: 10px;
 }
 
-.doc-list-section h3 {
+.doc-list-section h3,
+.session-list-section h3 {
     font-size: 14px;
     color: #94a3b8;
+}
+
+.session-header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.session-list li {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.session-list li:hover {
+    border-color: #475569;
+    background-color: #162238;
+}
+
+.session-list li.active {
+    border-color: #38bdf8;
+    background-color: rgba(56, 189, 248, 0.12);
+}
+
+.session-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.btn-rename-session {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.btn-rename-session:hover {
+    color: #38bdf8;
+    background-color: rgba(56, 189, 248, 0.15);
 }
 
 .btn-clear {

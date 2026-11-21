@@ -37,11 +37,23 @@
 
             <div class="doc-list-section">
                 <div class="doc-list-header">
-                    <h3>Kho tài liệu (<span id="docCountBadge">0</span>)</h3>
-                    <button id="clearDocsBtn" class="btn-clear" title="Xóa toàn bộ tài liệu trong bộ nhớ">🗑️ Xóa tất cả</button>
+                    <h3>📂 Kho tài liệu (<span id="docCountBadge">0</span>)</h3>
+                    <button id="clearDocsBtn" class="btn-clear" title="Xóa toàn bộ tài liệu trong bộ nhớ">🗑️ Xóa hết</button>
                 </div>
                 <ul id="uploadedDocsList" class="doc-list">
                     <li class="empty-item">Chưa có tài liệu nào được nạp.</li>
+                </ul>
+            </div>
+
+            <div class="session-list-section">
+                <div class="doc-list-header">
+                    <h3>💬 Lịch sử hội thoại (<span id="sessionCountBadge">0</span>)</h3>
+                    <div class="session-header-actions">
+                        <button id="clearSessionsBtn" class="btn-clear" title="Xóa toàn bộ lịch sử trò chuyện">🗑️ Xóa hết</button>
+                    </div>
+                </div>
+                <ul id="chatSessionsList" class="doc-list session-list">
+                    <li class="empty-item">Chưa có lịch sử trò chuyện.</li>
                 </ul>
             </div>
         </aside>
@@ -50,7 +62,7 @@
         <main class="chat-area">
             <header class="chat-header">
                 <div class="header-left">
-                    <h2>2. Trò chuyện với tài liệu</h2>
+                    <h2 id="activeSessionTitle">2. Trò chuyện với tài liệu</h2>
                     <span class="badge">LangChain4j &amp; Gemini API</span>
                 </div>
                 <div class="header-controls">
@@ -58,8 +70,8 @@
                     <select id="fileFilterSelect" class="filter-select">
                         <option value="ALL">📚 Tất cả tài liệu đã nạp</option>
                     </select>
-                    <button id="newChatBtn" class="btn-secondary" title="Xóa lịch sử trò chuyện hiện tại và bắt đầu phiên mới">
-                        🔄 Hội thoại mới
+                    <button id="newChatBtn" class="btn-secondary" title="Tạo một cuộc trò chuyện mới (cuộc trò chuyện cũ vẫn được lưu ở cột trái)">
+                        ➕ Hội thoại mới
                     </button>
                 </div>
             </header>
