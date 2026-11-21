@@ -1,5 +1,7 @@
 package com.example.docchat.config;
 
+import com.example.docchat.dto.AiSettingsRequest;
+import com.example.docchat.dto.AiSettingsResponse;
 import com.example.docchat.dto.ChatMessageRecord;
 import com.example.docchat.service.DocumentAssistant;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,10 +45,14 @@ public class AiConfig {
     private final Map<Object, ChatMemory> memoryMap = new ConcurrentHashMap<>();
 
     @Value("${ai.gemini.api-key}")
-    private String geminiApiKey;
+    private volatile String geminiApiKey;
 
     @Value("${ai.gemini.model-name:gemini-3.5-flash-lite}")
-    private String geminiModelName;
+    private volatile String geminiModelName;
+
+    private volatile double temperature = 0.2;
+    private volatile int maxResults = 6;
+    private volatile double minScore = 0.3;
 
     public static void setFileFilter(String fileName) {
         if (fileName == null || fileName.isBlank() || "ALL".equalsIgnoreCase(fileName)) {
@@ -58,6 +64,55 @@ public class AiConfig {
 
     public static void clearFileFilter() {
         ACTIVE_FILE_FILTER.remove();
+    }
+
+    public synchronized AiSettingsResponse getSettings() {
+        boolean configured = isApiKeyConfigured(geminiApiKey);
+        String masked = maskApiKey(geminiApiKey);
+        return new AiSettingsResponse(
+                masked,
+                configured,
+                geminiModelName,
+                temperature,
+                maxResults,
+                minScore
+        );
+    }
+
+    public synchronized AiSettingsResponse updateSettings(AiSettingsRequest req) {
+        if (req != null) {
+            if (req.apiKey() != null && !req.apiKey().isBlank()) {
+                this.geminiApiKey = req.apiKey().trim();
+            }
+            if (req.modelName() != null && !req.modelName().isBlank()) {
+                this.geminiModelName = req.modelName().trim();
+            }
+            if (req.temperature() != null) {
+                this.temperature = Math.max(0.0, Math.min(1.0, req.temperature()));
+            }
+            if (req.maxResults() != null) {
+                this.maxResults = Math.max(1, Math.min(20, req.maxResults()));
+            }
+            if (req.minScore() != null) {
+                this.minScore = Math.max(0.0, Math.min(0.95, req.minScore()));
+            }
+        }
+        return getSettings();
+    }
+
+    private boolean isApiKeyConfigured(String key) {
+        return key != null && !key.isBlank() && !"YOUR_GEMINI_API_KEY_HERE".equals(key.trim());
+    }
+
+    private String maskApiKey(String key) {
+        if (!isApiKeyConfigured(key)) {
+            return "Chưa cấu hình";
+        }
+        String trimmed = key.trim();
+        if (trimmed.length() <= 8) {
+            return "****";
+        }
+        return trimmed.substring(0, 4) + "••••••••" + trimmed.substring(trimmed.length() - 4);
     }
 
     public void clearSessionMemory(String sessionId) {
@@ -144,23 +199,26 @@ public class AiConfig {
                     "contents", List.of(
                             Map.of("parts", List.of(Map.of("text", fullPrompt.toString())))
                     ),
-                    "generationConfig", Map.of("temperature", 0.2)
+                    "generationConfig", Map.of("temperature", this.temperature)
             );
 
             List<String> candidateModels = new ArrayList<>();
-            candidateModels.add(geminiModelName);
+            candidateModels.add(this.geminiModelName);
             if (!candidateModels.contains("gemini-3.5-flash-lite")) {
                 candidateModels.add("gemini-3.5-flash-lite");
             }
             if (!candidateModels.contains("gemini-3.5-flash")) {
                 candidateModels.add("gemini-3.5-flash");
             }
+            if (!candidateModels.contains("gemini-2.5-flash")) {
+                candidateModels.add("gemini-2.5-flash");
+            }
 
             Exception lastError = null;
             for (String model : candidateModels) {
                 try {
                     String url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                            + model + ":generateContent?key=" + geminiApiKey;
+                            + model + ":generateContent?key=" + this.geminiApiKey;
 
                     JsonNode responseNode = restClient.post()
                             .uri(url)
@@ -191,24 +249,27 @@ public class AiConfig {
     }
 
     /**
-     * 4. Bộ truy xuất nội dung (Content Retriever) có hỗ trợ lọc theo tên tài liệu (Dynamic Filter)
+     * 4. Bộ truy xuất nội dung (Content Retriever) hỗ trợ lọc theo tên tài liệu & áp dụng động maxResults/minScore
      */
     @Bean
     public ContentRetriever contentRetriever(InMemoryEmbeddingStore<TextSegment> embeddingStore,
                                              EmbeddingModel embeddingModel) {
-        return EmbeddingStoreContentRetriever.builder()
-                .embeddingStore(embeddingStore)
-                .embeddingModel(embeddingModel)
-                .maxResults(6)
-                .minScore(0.3)
-                .dynamicFilter(query -> {
-                    String selectedFile = ACTIVE_FILE_FILTER.get();
-                    if (selectedFile != null && !selectedFile.isBlank()) {
-                        return MetadataFilterBuilder.metadataKey("file_name").isEqualTo(selectedFile);
-                    }
-                    return null;
-                })
-                .build();
+        return query -> {
+            EmbeddingStoreContentRetriever delegate = EmbeddingStoreContentRetriever.builder()
+                    .embeddingStore(embeddingStore)
+                    .embeddingModel(embeddingModel)
+                    .maxResults(this.maxResults)
+                    .minScore(this.minScore)
+                    .dynamicFilter(q -> {
+                        String selectedFile = ACTIVE_FILE_FILTER.get();
+                        if (selectedFile != null && !selectedFile.isBlank()) {
+                            return MetadataFilterBuilder.metadataKey("file_name").isEqualTo(selectedFile);
+                        }
+                        return null;
+                    })
+                    .build();
+            return delegate.retrieve(query);
+        };
     }
 
     /**

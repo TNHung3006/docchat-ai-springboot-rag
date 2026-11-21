@@ -1,6 +1,8 @@
 package com.example.docchat.controller;
 
 import com.example.docchat.config.AiConfig;
+import com.example.docchat.dto.AiSettingsRequest;
+import com.example.docchat.dto.AiSettingsResponse;
 import com.example.docchat.dto.ChatRequest;
 import com.example.docchat.dto.ChatResponse;
 import com.example.docchat.dto.ChatSession;
@@ -51,7 +53,7 @@ public class ChatController {
     }
 
     /**
-     * API 2: Tải lên tài liệu (PDF, DOCX, XLSX, PPTX, TXT)
+     * API 2: Tải lên 1 tài liệu (PDF, DOCX, XLSX, PPTX, TXT)
      */
     @PostMapping("/documents/upload")
     public ResponseEntity<Map<String, Object>> uploadDocument(@RequestParam("file") MultipartFile file) {
@@ -77,6 +79,70 @@ public class ChatController {
                     "message", "Lỗi khi xử lý tài liệu: " + e.getMessage()
             ));
         }
+    }
+
+    /**
+     * API 2b: Tải lên nhiều tài liệu cùng lúc (Multi-file Upload & Drag-and-Drop)
+     */
+    @PostMapping("/documents/upload-batch")
+    public ResponseEntity<Map<String, Object>> uploadBatchDocuments(@RequestParam("files") MultipartFile[] files) {
+        if (files == null || files.length == 0) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Vui lòng chọn ít nhất một file hợp lệ!"
+            ));
+        }
+
+        List<DocumentInfo> uploaded = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        int totalChunks = 0;
+
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
+            try {
+                DocumentInfo info = ingestionService.ingestDocument(file);
+                uploaded.add(info);
+                totalChunks += info.chunks();
+            } catch (Exception e) {
+                errors.add((file.getOriginalFilename() != null ? file.getOriginalFilename() : "file")
+                        + ": " + e.getMessage());
+            }
+        }
+
+        if (uploaded.isEmpty()) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "Không thể xử lý tài liệu: " + String.join("; ", errors)
+            ));
+        }
+
+        String msg = String.format("Đã nạp thành công %d tài liệu (tổng cộng %d đoạn văn).",
+                uploaded.size(), totalChunks);
+        if (!errors.isEmpty()) {
+            msg += " Lỗi một số file: " + String.join("; ", errors);
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", msg,
+                "totalChunks", totalChunks,
+                "documents", uploaded
+        ));
+    }
+
+    /**
+     * API 2c: Xem danh sách các đoạn văn (chunks) đã cắt của một tài liệu
+     */
+    @GetMapping("/documents/{fileName}/chunks")
+    public ResponseEntity<Map<String, Object>> getDocumentChunks(@PathVariable("fileName") String fileName) {
+        List<String> chunks = ingestionService.getDocumentChunks(fileName);
+        return ResponseEntity.ok(Map.of(
+                "fileName", fileName,
+                "totalChunks", chunks.size(),
+                "chunks", chunks
+        ));
     }
 
     /**
@@ -147,7 +213,7 @@ public class ChatController {
             return ResponseEntity.ok(new ChatResponse(result.content(), citations));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(new ChatResponse(
-                    "Lỗi kết nối tới LLM API (Kiểm tra lại GEMINI_API_KEY của bạn): " + e.getMessage()
+                    "Lỗi kết nối tới LLM API (Kiểm tra lại GEMINI_API_KEY trong mục ⚙️ Cài đặt): " + e.getMessage()
             ));
         } finally {
             AiConfig.clearFileFilter();
@@ -233,5 +299,21 @@ public class ChatController {
                 "status", "success",
                 "message", "Đã làm mới phiên hội thoại."
         ));
+    }
+
+    /**
+     * API 13: Lấy thông tin cài đặt AI hiện tại
+     */
+    @GetMapping("/settings")
+    public ResponseEntity<AiSettingsResponse> getAiSettings() {
+        return ResponseEntity.ok(aiConfig.getSettings());
+    }
+
+    /**
+     * API 14: Cập nhật cài đặt AI trực tiếp lúc Runtime (API Key, Model, Temperature, MaxResults, MinScore)
+     */
+    @PutMapping("/settings")
+    public ResponseEntity<AiSettingsResponse> updateAiSettings(@RequestBody AiSettingsRequest request) {
+        return ResponseEntity.ok(aiConfig.updateSettings(request));
     }
 }

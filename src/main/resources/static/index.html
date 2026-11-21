@@ -20,12 +20,12 @@
 
             <div class="upload-card">
                 <h2>1. Tải tài liệu lên</h2>
-                <p class="hint">Hỗ trợ <strong>.PDF, .DOCX, .XLSX, .PPTX, .TXT</strong></p>
+                <p class="hint">Hỗ trợ <strong>.PDF, .DOCX, .XLSX, .PPTX, .TXT, .MD, .CSV</strong> (Chọn hoặc kéo thả nhiều file)</p>
 
                 <label for="fileInput" class="drop-zone" id="dropZone">
                     <span class="upload-icon">📄</span>
-                    <span id="fileNameDisplay">Nhấn để chọn file tài liệu</span>
-                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt,.md,.csv" hidden>
+                    <span id="fileNameDisplay">Kéo thả file vào đây hoặc nhấn để chọn</span>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt,.md,.csv" multiple hidden>
                 </label>
 
                 <button id="uploadBtn" class="btn-primary" disabled>
@@ -52,6 +52,9 @@
                         <button id="clearSessionsBtn" class="btn-clear" title="Xóa toàn bộ lịch sử trò chuyện">🗑️ Xóa hết</button>
                     </div>
                 </div>
+                <div class="session-search-box">
+                    <input type="text" id="sessionSearchInput" placeholder="🔍 Tìm kiếm cuộc trò chuyện..." autocomplete="off">
+                </div>
                 <ul id="chatSessionsList" class="doc-list session-list">
                     <li class="empty-item">Chưa có lịch sử trò chuyện.</li>
                 </ul>
@@ -63,15 +66,21 @@
             <header class="chat-header">
                 <div class="header-left">
                     <h2 id="activeSessionTitle">2. Trò chuyện với tài liệu</h2>
-                    <span class="badge">LangChain4j &amp; Gemini API</span>
+                    <span class="badge" id="activeModelBadge">LangChain4j &amp; Gemini API</span>
                 </div>
                 <div class="header-controls">
-                    <label for="fileFilterSelect" class="filter-label">🔍 Phạm vi tìm kiếm:</label>
+                    <label for="fileFilterSelect" class="filter-label">🔍 Phạm vi:</label>
                     <select id="fileFilterSelect" class="filter-select">
                         <option value="ALL">📚 Tất cả tài liệu đã nạp</option>
                     </select>
+                    <button id="exportChatBtn" class="btn-secondary" title="Tải xuống toàn bộ cuộc trò chuyện hiện tại dưới dạng file Markdown (.md)">
+                        📥 Xuất (.md)
+                    </button>
                     <button id="newChatBtn" class="btn-secondary" title="Tạo một cuộc trò chuyện mới (cuộc trò chuyện cũ vẫn được lưu ở cột trái)">
                         ➕ Hội thoại mới
+                    </button>
+                    <button id="openSettingsBtn" class="btn-secondary" title="Cấu hình API Key, Model Gemini và tham số tìm kiếm RAG">
+                        ⚙️ Cài đặt
                     </button>
                 </div>
             </header>
@@ -80,8 +89,8 @@
                 <div class="message ai-message">
                     <div class="avatar">🤖</div>
                     <div class="bubble">
-                        <p>Xin chào! Hãy tải lên tài liệu (<strong>PDF, Word, Excel, PowerPoint, TXT</strong>) ở cột bên trái, sau đó đặt câu hỏi về nội dung bên trong.</p>
-                        <p>✨ <strong>Tính năng mới:</strong> Tự động lưu trữ Vector bền vững, trích dẫn đoạn văn gốc (Source Citations), lọc phạm vi tìm kiếm theo từng file và quản lý phiên hội thoại độc lập!</p>
+                        <p>Xin chào! Hãy kéo thả hoặc tải lên nhiều tài liệu (<strong>PDF, Word, Excel, PowerPoint, TXT</strong>) ở cột bên trái, sau đó đặt câu hỏi về nội dung bên trong.</p>
+                        <p>✨ <strong>Tính năng nổi bật:</strong> Kéo thả nhiều file, xem chi tiết các đoạn văn (👁️ Chunks), trích dẫn nguồn, lọc theo từng file, sao chép câu trả lời, xuất file báo cáo <code>.md</code> và tùy chỉnh thông số AI trực tiếp trong <strong>⚙️ Cài đặt</strong>!</p>
                     </div>
                 </div>
             </div>
@@ -104,6 +113,80 @@
                 <button type="submit" id="sendBtn" class="btn-send">Gửi ➤</button>
             </form>
         </main>
+    </div>
+
+    <!-- Modal 1: Xem chi tiết các đoạn văn (Chunks Preview) của tài liệu -->
+    <div id="chunksModal" class="modal-overlay hidden">
+        <div class="modal-card modal-large">
+            <div class="modal-header">
+                <h3 id="chunksModalTitle">📄 Các đoạn văn đã cắt (Chunks)</h3>
+                <button type="button" id="closeChunksModalBtn" class="btn-close-modal" title="Đóng">✖</button>
+            </div>
+            <div class="modal-toolbar">
+                <input type="text" id="chunkSearchInput" placeholder="🔍 Lọc nhanh nội dung trong các đoạn văn..." autocomplete="off">
+                <span id="chunkCountInfo" class="chunk-count-badge">0 đoạn</span>
+            </div>
+            <div id="chunksModalBody" class="modal-body chunks-container">
+                <!-- Danh sách chunks sẽ được render tại đây -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Bảng Cài đặt AI (Settings Modal) -->
+    <div id="settingsModal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>⚙️ Cài đặt AI &amp; Tham số RAG</h3>
+                <button type="button" id="closeSettingsModalBtn" class="btn-close-modal" title="Đóng">✖</button>
+            </div>
+            <form id="settingsForm" class="modal-body settings-form">
+                <div class="form-group">
+                    <label for="settingsApiKey">🔑 Google Gemini API Key</label>
+                    <div class="api-key-status-row">
+                        <span class="status-label">Hiện tại:</span>
+                        <code id="currentMaskedKey">Đang tải...</code>
+                    </div>
+                    <input type="password" id="settingsApiKey" placeholder="Để trống nếu giữ nguyên API Key hiện tại..." autocomplete="off">
+                </div>
+
+                <div class="form-group">
+                    <label for="settingsModelName">🤖 Dòng mô hình Gemini (Model)</label>
+                    <select id="settingsModelName">
+                        <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Nhanh &amp; Tiết kiệm - Mặc định)</option>
+                        <option value="gemini-3.5-flash">gemini-3.5-flash (Cân bằng tốc độ &amp; độ chính xác)</option>
+                        <option value="gemini-2.5-flash">gemini-2.5-flash (Ổn định, tương thích rộng)</option>
+                        <option value="gemini-2.5-pro">gemini-2.5-pro (Phân tích chuyên sâu)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <div class="slider-header">
+                        <label for="settingsTemperature">🌡️ Độ sáng tạo (Temperature)</label>
+                        <span id="tempValueLabel" class="slider-val">0.2</span>
+                    </div>
+                    <input type="range" id="settingsTemperature" min="0" max="1" step="0.1" value="0.2">
+                    <small class="field-hint">Thấp (0.0 - 0.3): Bám sát tài liệu gốc • Cao (0.7 - 1.0): Diễn đạt linh hoạt</small>
+                </div>
+
+                <div class="form-row-2col">
+                    <div class="form-group">
+                        <label for="settingsMaxResults">📑 Số đoạn trích dẫn tối đa</label>
+                        <input type="number" id="settingsMaxResults" min="1" max="15" value="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsMinScore">🎯 Ngưỡng điểm tương đồng (0.1 - 0.8)</label>
+                        <input type="number" id="settingsMinScore" min="0.1" max="0.85" step="0.05" value="0.3">
+                    </div>
+                </div>
+
+                <div id="settingsStatus" class="status-box hidden"></div>
+
+                <div class="modal-footer">
+                    <button type="button" id="cancelSettingsBtn" class="btn-secondary">Hủy</button>
+                    <button type="submit" id="saveSettingsBtn" class="btn-primary">💾 Lưu cài đặt</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script src="app.js"></script>

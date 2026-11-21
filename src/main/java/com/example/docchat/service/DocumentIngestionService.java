@@ -3,6 +3,7 @@ package com.example.docchat.service;
 import com.example.docchat.config.AiConfig;
 import com.example.docchat.dto.DocumentInfo;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentParser;
@@ -35,12 +36,14 @@ import java.util.Map;
 public class DocumentIngestionService {
 
     private static final Path META_FILE = Paths.get("data", "documents-meta.json");
+    private static final Path CHUNKS_FILE = Paths.get("data", "document-chunks.json");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
 
     private final InMemoryEmbeddingStore<TextSegment> embeddingStore;
     private final EmbeddingModel embeddingModel;
     private final ObjectMapper objectMapper;
     private final Map<String, DocumentInfo> documentRegistry = new LinkedHashMap<>();
+    private final Map<String, List<String>> documentChunksMap = new LinkedHashMap<>();
 
     public DocumentIngestionService(InMemoryEmbeddingStore<TextSegment> embeddingStore,
                                     EmbeddingModel embeddingModel,
@@ -63,8 +66,62 @@ public class DocumentIngestionService {
                     documentRegistry.put(info.fileName(), info);
                 }
             }
+            if (Files.exists(CHUNKS_FILE)) {
+                Map<String, List<String>> savedChunks = objectMapper.readValue(
+                        CHUNKS_FILE.toFile(),
+                        new TypeReference<Map<String, List<String>>>() {}
+                );
+                if (savedChunks != null) {
+                    documentChunksMap.putAll(savedChunks);
+                }
+            }
+            recoverChunksFromVectorStoreIfNeeded();
         } catch (Exception e) {
             System.err.println("Không thể đọc metadata tài liệu: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Khôi phục danh sách đoạn văn từ vector-store.json cho các tài liệu cũ đã nạp trước khi có document-chunks.json
+     */
+    private void recoverChunksFromVectorStoreIfNeeded() {
+        try {
+            if (!Files.exists(AiConfig.VECTOR_STORE_FILE)) {
+                return;
+            }
+            JsonNode root = objectMapper.readTree(AiConfig.VECTOR_STORE_FILE.toFile());
+            JsonNode entries = root.path("entries");
+            if (!entries.isArray()) {
+                return;
+            }
+            Map<String, List<String>> extracted = new LinkedHashMap<>();
+            for (JsonNode entry : entries) {
+                JsonNode segment = entry.path("embedded");
+                if (segment.isMissingNode()) {
+                    segment = entry.path("textSegment");
+                }
+                String text = segment.path("text").asText(null);
+                JsonNode metaNode = segment.path("metadata");
+                if (metaNode.has("metadata")) {
+                    metaNode = metaNode.path("metadata");
+                }
+                String fileName = metaNode.path("file_name").asText(null);
+                if (fileName != null && text != null && !text.isBlank()) {
+                    extracted.computeIfAbsent(fileName, k -> new ArrayList<>()).add(text);
+                }
+            }
+            boolean updated = false;
+            for (Map.Entry<String, List<String>> e : extracted.entrySet()) {
+                if (!documentChunksMap.containsKey(e.getKey()) || documentChunksMap.get(e.getKey()).isEmpty()) {
+                    documentChunksMap.put(e.getKey(), e.getValue());
+                    updated = true;
+                }
+            }
+            if (updated) {
+                objectMapper.writerWithDefaultPrettyPrinter()
+                        .writeValue(CHUNKS_FILE.toFile(), documentChunksMap);
+            }
+        } catch (Exception ignored) {
         }
     }
 
@@ -107,6 +164,12 @@ public class DocumentIngestionService {
 
             ingestor.ingest(document);
 
+            List<String> chunkTexts = new ArrayList<>(segments.size());
+            for (TextSegment seg : segments) {
+                chunkTexts.add(seg.text());
+            }
+            documentChunksMap.put(filename, chunkTexts);
+
             DocumentInfo docInfo = new DocumentInfo(
                     filename,
                     segments.size(),
@@ -128,11 +191,20 @@ public class DocumentIngestionService {
     }
 
     /**
+     * Lấy danh sách các đoạn văn (chunks) của một tài liệu cụ thể
+     */
+    public synchronized List<String> getDocumentChunks(String filename) {
+        List<String> chunks = documentChunksMap.get(filename);
+        return chunks != null ? new ArrayList<>(chunks) : List.of();
+    }
+
+    /**
      * Xóa 1 tài liệu cụ thể theo tên file
      */
     public synchronized boolean deleteDocument(String filename) {
         removeFromVectorStore(filename);
         DocumentInfo removed = documentRegistry.remove(filename);
+        documentChunksMap.remove(filename);
         persistState();
         return removed != null;
     }
@@ -143,6 +215,7 @@ public class DocumentIngestionService {
     public synchronized void clearAllDocuments() {
         embeddingStore.removeAll();
         documentRegistry.clear();
+        documentChunksMap.clear();
         persistState();
     }
 
@@ -159,6 +232,8 @@ public class DocumentIngestionService {
             embeddingStore.serializeToFile(AiConfig.VECTOR_STORE_FILE);
             objectMapper.writerWithDefaultPrettyPrinter()
                     .writeValue(META_FILE.toFile(), new ArrayList<>(documentRegistry.values()));
+            objectMapper.writerWithDefaultPrettyPrinter()
+                    .writeValue(CHUNKS_FILE.toFile(), documentChunksMap);
         } catch (Exception e) {
             System.err.println("Không thể lưu trạng thái Vector Store xuống đĩa: " + e.getMessage());
         }
